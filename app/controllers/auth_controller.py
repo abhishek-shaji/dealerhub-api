@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 
 from app.models import User
-from app.database import SessionLocal, get_db
+from app.database import get_db
 from app.schemas.user_schema import UserCreate, UserResponse, UserLogin
+from app.config import config
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -25,7 +26,10 @@ class AuthController:
         existing_user = self.db.query(User).filter(User.email == user.email).first()
 
         if existing_user:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered",
+            )
 
         hashed_password = pwd_context.hash(user.password)
         db_user = User(
@@ -46,16 +50,15 @@ class AuthController:
         db_user = self.db.query(User).filter(User.email == user.email).first()
 
         if not db_user or not pwd_context.verify(user.password, db_user.password):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+            )
 
         access_token_expires = datetime.utcnow() + timedelta(minutes=1440)
         access_token = jwt.encode(
-            {
-                "sub": str(db_user.email),
-                "exp": access_token_expires
-            },
-            os.getenv('SECRET_KEY'),
-            algorithm="HS256"
+            {"sub": str(db_user.email), "exp": access_token_expires},
+            config.SECRET_KEY,
+            algorithm="HS256",
         )
 
         response.set_cookie(
@@ -72,9 +75,6 @@ class AuthController:
     @router.post("/logout")
     def logout(self, response: Response):
         response.delete_cookie(
-            key="access_token",
-            httponly=True,
-            secure=True,
-            samesite="lax"
+            key="access_token", httponly=True, secure=True, samesite="lax"
         )
         return {"message": "Successfully logged out"}
