@@ -7,12 +7,12 @@ from fastapi_utils.cbv import cbv
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 
-from app.models import User
+from app.schemas import User
 from app.database import get_db
-from app.schemas.user_schema import UserCreate, UserResponse, UserLogin
+from app.models.user_model import UserCreate, UserResponse, UserLogin
 from app.config import config
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/auth")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -21,7 +21,11 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 class AuthController:
     db: Session = Depends(get_db)
 
-    @router.post("/register", response_model=UserResponse)
+    @router.post(
+        "/register",
+        response_model=UserResponse,
+        description="Register a new user",
+    )
     def register(self, user: UserCreate):
         existing_user = self.db.query(User).filter(User.email == user.email).first()
 
