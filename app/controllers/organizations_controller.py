@@ -6,9 +6,10 @@ from fastapi_utils.cbv import cbv
 from sqlalchemy.orm import Session
 
 from app.models.organization_model import OrganizationCreate, OrganizationResponse
-from app.schemas import User, Organization
+from app.schemas import User
 from app.database import get_db
 from app.utilities.auth_utility import get_current_user
+from app.services.organizations_service import OrganizationService, get_organization_service
 
 router = APIRouter(prefix="/organizations")
 
@@ -16,6 +17,7 @@ router = APIRouter(prefix="/organizations")
 @cbv(router)
 class OrganizationsController:
     db: Session = Depends(get_db)
+    organization_service: OrganizationService = Depends(get_organization_service)
 
     @router.post(
         "/",
@@ -28,15 +30,7 @@ class OrganizationsController:
         form_data: OrganizationCreate,
         current_user: User = Depends(get_current_user),
     ):
-        organization = Organization(
-            name=form_data.name,
-            email=str(form_data.email),
-            created_by_id=current_user.id,
-        )
-        self.db.add(organization)
-        self.db.commit()
-        self.db.refresh(organization)
-        return organization
+        return self.organization_service.create(form_data, current_user)
 
     @router.get(
         "/",
@@ -48,12 +42,7 @@ class OrganizationsController:
         self,
         current_user: User = Depends(get_current_user),
     ):
-        organizations = (
-            self.db.query(Organization)
-            .filter(Organization.created_by_id == current_user.id)
-            .all()
-        )
-        return organizations
+        return self.organization_service.get_all(current_user)
 
     @router.get(
         "/{organization_id}",
@@ -66,17 +55,7 @@ class OrganizationsController:
         organization_id: UUID,
         current_user: User = Depends(get_current_user),
     ):
-        organization = (
-            self.db.query(Organization)
-            .filter(
-                Organization.id == organization_id,
-                Organization.created_by_id == current_user.id,
-            )
-            .first()
-        )
-        if not organization:
-            raise HTTPException(status_code=404, detail="Organization not found")
-        return organization
+        return self.organization_service.get_one(organization_id, current_user)
 
     @router.put(
         "/{organization_id}",
@@ -90,22 +69,7 @@ class OrganizationsController:
         form_data: OrganizationCreate,
         current_user: User = Depends(get_current_user),
     ):
-        organization = (
-            self.db.query(Organization)
-            .filter(
-                Organization.id == organization_id,
-                Organization.created_by_id == current_user.id,
-            )
-            .first()
-        )
-        if not organization:
-            raise HTTPException(status_code=404, detail="Organization not found")
-
-        organization.name = form_data.name
-        organization.email = str(form_data.email)
-        self.db.commit()
-        self.db.refresh(organization)
-        return organization
+        return self.organization_service.update(organization_id, form_data, current_user)
 
     @router.delete(
         "/{organization_id}",
@@ -117,18 +81,5 @@ class OrganizationsController:
         organization_id: UUID,
         current_user: User = Depends(get_current_user),
     ):
-        organization = (
-            self.db.query(Organization)
-            .filter(
-                Organization.id == organization_id,
-                Organization.created_by_id == current_user.id,
-            )
-            .first()
-        )
-
-        if not organization:
-            raise HTTPException(status_code=404, detail="Organization not found")
-        self.db.delete(organization)
-        self.db.commit()
-
+        self.organization_service.delete(organization_id, current_user)
         return

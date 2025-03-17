@@ -1,13 +1,14 @@
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi_utils.cbv import cbv
 from sqlalchemy.orm import Session
 
 from app.models.brand_model import BrandCreate, BrandResponse
 from app.schemas import User, Brand
 from app.database import get_db
+from app.services.brands_service import BrandService, get_brand_service
 from app.utilities.auth_utility import get_current_user
 
 router = APIRouter(prefix="/brands")
@@ -16,6 +17,7 @@ router = APIRouter(prefix="/brands")
 @cbv(router)
 class BrandsController:
     db: Session = Depends(get_db)
+    brand_service: BrandService = Depends(get_brand_service)
 
     @router.post(
         "/",
@@ -28,14 +30,7 @@ class BrandsController:
         form_data: BrandCreate,
         current_user: User = Depends(get_current_user),
     ):
-        brand = Brand(
-            name=form_data.name,
-            created_by_id=current_user.id,
-        )
-        self.db.add(brand)
-        self.db.commit()
-        self.db.refresh(brand)
-        return brand
+        return self.brand_service.create(form_data, current_user)
 
     @router.get(
         "/",
@@ -47,12 +42,7 @@ class BrandsController:
         self,
         current_user: User = Depends(get_current_user),
     ):
-        brands = (
-            self.db.query(Brand)
-            .filter(Brand.created_by_id == current_user.id)
-            .all()
-        )
-        return brands
+        return self.brand_service.get_all(current_user)
 
     @router.get(
         "/{brand_id}",
@@ -65,17 +55,7 @@ class BrandsController:
         brand_id: UUID,
         current_user: User = Depends(get_current_user),
     ):
-        brand = (
-            self.db.query(Brand)
-            .filter(
-                Brand.id == brand_id,
-                Brand.created_by_id == current_user.id,
-            )
-            .first()
-        )
-        if not brand:
-            raise HTTPException(status_code=404, detail="Brand not found")
-        return brand
+        return self.brand_service.get_one(brand_id, current_user)
 
     @router.put(
         "/{brand_id}",
@@ -89,21 +69,7 @@ class BrandsController:
         form_data: BrandCreate,
         current_user: User = Depends(get_current_user),
     ):
-        brand = (
-            self.db.query(Brand)
-            .filter(
-                Brand.id == brand_id,
-                Brand.created_by_id == current_user.id,
-            )
-            .first()
-        )
-        if not brand:
-            raise HTTPException(status_code=404, detail="Brand not found")
-
-        brand.name = form_data.name
-        self.db.commit()
-        self.db.refresh(brand)
-        return brand
+        return self.brand_service.update(brand_id, form_data, current_user)
 
     @router.delete(
         "/{brand_id}",
@@ -115,18 +81,5 @@ class BrandsController:
         brand_id: UUID,
         current_user: User = Depends(get_current_user),
     ):
-        brand = (
-            self.db.query(Brand)
-            .filter(
-                Brand.id == brand_id,
-                Brand.created_by_id == current_user.id,
-            )
-            .first()
-        )
-
-        if not brand:
-            raise HTTPException(status_code=404, detail="Brand not found")
-        self.db.delete(brand)
-        self.db.commit()
-
-        return 
+        self.brand_service.delete(brand_id, current_user)
+        return
